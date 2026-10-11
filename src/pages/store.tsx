@@ -870,6 +870,25 @@ export default function Store() {
     if (!confirm("Ali ste prepričani, da želite izbrisati ta artikel?")) return;
 
     try {
+      // First check if there are any orders containing this item
+      const { data: orderItems, error: checkError } = await supabase
+        .from("store_order_items")
+        .select("id")
+        .eq("item_id", articleId)
+        .limit(1);
+
+      if (checkError) throw checkError;
+
+      if (orderItems && orderItems.length > 0) {
+        toast({
+          title: "Artikel ni mogoče izbrisati",
+          description: "Ta artikel ima aktivna naročila in ga ni mogoče izbrisati. Artikel lahko arhivirate namesto brisanja.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // No orders found, safe to delete
       const { error } = await supabase
         .from("store_items")
         .delete()
