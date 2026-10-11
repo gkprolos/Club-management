@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { LogIn, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,6 +18,9 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     if (!loading && user) {
@@ -52,6 +57,45 @@ export default function LoginPage() {
       });
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+
+    if (!resetEmail) {
+      toast({
+        variant: "destructive",
+        title: "Napaka",
+        description: "Vpišite e-poštni naslov"
+      });
+      return;
+    }
+
+    try {
+      setResetting(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Povezava poslana",
+        description: `Preverite e-pošto ${resetEmail} za navodila za ponastavitev gesla.`
+      });
+      
+      setForgotPasswordOpen(false);
+      setResetEmail("");
+    } catch (error: any) {
+      console.error("Reset password error:", error);
+      toast({
+        variant: "destructive",
+        title: "Napaka",
+        description: error.message || "Napaka pri pošiljanju povezave"
+      });
+    } finally {
+      setResetting(false);
     }
   }
 
@@ -92,7 +136,19 @@ export default function LoginPage() {
               
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Geslo</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Geslo</Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetEmail(email);
+                    setForgotPasswordOpen(true);
+                  }}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Pozabljeno geslo?
+                </button>
+              </div>
               <Input
                 id="password"
                 type="password"
@@ -135,6 +191,54 @@ export default function LoginPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Forgot Password Dialog */}
+      <Dialog open={forgotPasswordOpen} onOpenChange={setForgotPasswordOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ponastavitev gesla</DialogTitle>
+            <DialogDescription>
+              Vnesite vaš e-poštni naslov in poslali vam bomo povezavo za ponastavitev gesla.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleResetPassword}>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">E-pošta</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  placeholder="ime@primer.si"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                  disabled={resetting}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setForgotPasswordOpen(false)}
+                disabled={resetting}
+              >
+                Prekliči
+              </Button>
+              <Button type="submit" disabled={resetting}>
+                {resetting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Pošiljam...
+                  </>
+                ) : (
+                  "Pošlji povezavo"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>);
 
 }
