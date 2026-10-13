@@ -210,11 +210,24 @@ export default function MyChildren() {
     }
 
     const getDaysInMonth = () => {
+        const firstDay = new Date(selectedYear, selectedMonth, 1);
         const lastDay = new Date(selectedYear, selectedMonth + 1, 0);
-        const days: Date[] = [];
+        const days: (Date | null)[] = [];
+        
+        // Add empty cells for days before the first day of the month
+        // getDay() returns 0-6 (Sunday-Saturday), we need Monday=0, so adjust
+        const firstDayOfWeek = firstDay.getDay();
+        const emptyDays = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1; // Convert to Monday=0
+        
+        for (let i = 0; i < emptyDays; i++) {
+            days.push(null);
+        }
+        
+        // Add all actual days of the month
         for (let i = 1; i <= lastDay.getDate(); i++) {
             days.push(new Date(selectedYear, selectedMonth, i));
         }
+        
         return days;
     };
 
@@ -280,7 +293,7 @@ export default function MyChildren() {
     const presentCount = attendance.filter((a) => a.status === "present").length;
     const absentCount = attendance.filter((a) => a.status === "absent").length;
     const excusedCount = attendance.filter((a) => a.status === "excused").length;
-    const totalTrainings = getDaysInMonth().filter(date => getScheduleForDate(date.toISOString().split("T")[0]) !== null).length;
+    const totalTrainings = getDaysInMonth().filter(date => date !== null && getScheduleForDate(date.toISOString().split("T")[0]) !== null).length;
 
     if (loading) {
         return (
@@ -429,7 +442,12 @@ export default function MyChildren() {
                                 </div>
 
                                 <div className="grid grid-cols-7 gap-2">
-                                    {getDaysInMonth().map((date) => {
+                                    {getDaysInMonth().map((date, index) => {
+                                        if (date === null) {
+                                            // Empty cell before first day of month
+                                            return <div key={`empty-${index}`} className="min-h-[90px]"></div>;
+                                        }
+
                                         const dateStr = date.toISOString().split("T")[0];
                                         const dayAttendance = getAttendanceForDate(dateStr);
                                         const schedule = getScheduleForDate(dateStr);
