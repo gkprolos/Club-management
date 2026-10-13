@@ -198,6 +198,14 @@ function InnerLayout({ children, userRole }: {children: React.ReactNode;userRole
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={pathname === "/billing"}>
+                        <Link href="/billing">
+                          <DollarSign className="w-4 h-4" />
+                          Obračun
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={pathname === "/store"}>
                         <Link href="/store">
                           <ShoppingBag className="w-4 h-4" />
