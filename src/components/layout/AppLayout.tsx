@@ -150,6 +150,14 @@ function InnerLayout({ children, userRole }: {children: React.ReactNode;userRole
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                     <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={pathname === "/activities"}>
+                        <Link href="/activities">
+                          <ClipboardList className="w-4 h-4" />
+                          Aktivnosti
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
                       <SidebarMenuButton asChild isActive={pathname === "/my-teams"}>
                         <Link href="/my-teams">
                           <Users className="w-4 h-4" />
