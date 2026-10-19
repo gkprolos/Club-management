@@ -1672,7 +1672,7 @@ export default function Store() {
         </div>
 
         <Tabs defaultValue="orders" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="w-full inline-flex overflow-x-auto">
             {(userRole === "parent" || userRole === "coach" || userRole === "admin") && (
               <TabsTrigger value="store">Trgovina</TabsTrigger>
             )}
