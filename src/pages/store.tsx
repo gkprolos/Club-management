@@ -1672,23 +1672,23 @@ export default function Store() {
         </div>
 
         <Tabs defaultValue="orders" className="space-y-4">
-          <TabsList className="w-full inline-flex overflow-x-auto">
+          <TabsList className="w-full inline-flex overflow-x-auto px-1">
             {(userRole === "parent" || userRole === "coach" || userRole === "admin") && (
-              <TabsTrigger value="store">Trgovina</TabsTrigger>
+              <TabsTrigger value="store" className="whitespace-nowrap">Trgovina</TabsTrigger>
             )}
             {userRole === "parent" && (
-              <TabsTrigger value="my-orders">Moja naročila</TabsTrigger>
+              <TabsTrigger value="my-orders" className="whitespace-nowrap">Moja naročila</TabsTrigger>
             )}
             {(userRole === "coach" || userRole === "admin") && (
-              <TabsTrigger value="orders">Naročila</TabsTrigger>
+              <TabsTrigger value="orders" className="whitespace-nowrap">Naročila</TabsTrigger>
             )}
             {userRole === "admin" && (
               <>
-                <TabsTrigger value="collections">Zbirniki</TabsTrigger>
-                <TabsTrigger value="reports">Poročila</TabsTrigger>
-                <TabsTrigger value="articles">Artikli</TabsTrigger>
-                <TabsTrigger value="suppliers">Dobavitelji</TabsTrigger>
-                <TabsTrigger value="categories">Kategorije</TabsTrigger>
+                <TabsTrigger value="collections" className="whitespace-nowrap">Zbirniki</TabsTrigger>
+                <TabsTrigger value="reports" className="whitespace-nowrap">Poročila</TabsTrigger>
+                <TabsTrigger value="articles" className="whitespace-nowrap">Artikli</TabsTrigger>
+                <TabsTrigger value="suppliers" className="whitespace-nowrap">Dobavitelji</TabsTrigger>
+                <TabsTrigger value="categories" className="whitespace-nowrap">Kategorije</TabsTrigger>
               </>
             )}
           </TabsList>
