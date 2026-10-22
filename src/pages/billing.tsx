@@ -25,6 +25,17 @@ interface MonthlyBilling {
   total_amount: number;
 }
 
+interface ActivityDetail {
+  date: string;
+  team_name: string;
+  activity_type: string;
+  start_time: string;
+  end_time: string;
+  training_hours: number;
+  match_hours: number;
+  kilometers: number;
+}
+
 const monthNames = [
   "Januar", "Februar", "Marec", "April", "Maj", "Junij",
   "Julij", "Avgust", "September", "Oktober", "November", "December"
@@ -49,6 +60,7 @@ export default function BillingPage() {
   const [teams, setTeams] = useState<any[]>([]);
   const [coaches, setCoaches] = useState<any[]>([]);
   const [monthlyBilling, setMonthlyBilling] = useState<MonthlyBilling[]>([]);
+  const [activityDetails, setActivityDetails] = useState<ActivityDetail[]>([]);
 
   useEffect(() => {
     async function checkAdmin() {
@@ -207,57 +219,37 @@ export default function BillingPage() {
           return diffMonths;
         })();
 
-      // Load coach profiles with rates FROM COACH_RATES TABLE
-      let coachRatesQuery = supabase
-        .from("coach_rates")
-        .select(`
-          coach_id,
-          head_type1_per_hour,
-          head_type2_per_hour,
-          head_type3_fixed,
-          assistant_type1_per_hour,
-          assistant_type2_per_hour,
-          assistant_type3_fixed,
-          rate_per_km,
-          profiles!coach_rates_coach_id_fkey(
-            id,
-            full_name
-          ),
-          seasons!coach_rates_season_id_fkey(
-            id,
-            name,
-            is_active
-          )
-        `)
-        .eq("seasons.is_active", true);
+      // Load coach profiles with rates FROM PROFILES TABLE (simplified)
+      let profilesQuery = supabase
+        .from("profiles")
+        .select("id, full_name, hourly_rate, km_rate");
 
       if (coachIds.length > 0) {
-        coachRatesQuery = coachRatesQuery.in("coach_id", coachIds);
+        profilesQuery = profilesQuery.in("id", coachIds);
       }
 
-      const { data: coachRates, error: ratesError } = await coachRatesQuery;
+      const { data: profiles, error: profilesError } = await profilesQuery;
       
-      if (ratesError) {
-        console.error("Error loading coach rates:", ratesError);
-        throw ratesError;
+      if (profilesError) {
+        console.error("Error loading coach profiles:", profilesError);
+        throw profilesError;
       }
 
-      console.log(`Loaded ${(coachRates || []).length} coach rates for active season`);
+      console.log(`Loaded ${(profiles || []).length} coach profiles with rates`);
       
       // Debug: Show loaded rates
-      if (coachRates && coachRates.length > 0) {
-        console.log("Coach rates loaded:");
-        coachRates.forEach(cr => {
-          const coachName = cr.profiles?.full_name || "Unknown";
-          console.log(`  ${coachName}: type1=${cr.head_type1_per_hour}, type2=${cr.head_type2_per_hour}, type3=${cr.head_type3_fixed}, km=${cr.rate_per_km}`);
+      if (profiles && profiles.length > 0) {
+        console.log("Coach rates loaded from profiles:");
+        profiles.forEach(p => {
+          console.log(`  ${p.full_name}: hourly=${p.hourly_rate}, km=${p.km_rate}`);
         });
       } else {
-        console.warn("⚠️ NO COACH RATES FOUND FOR ACTIVE SEASON!");
+        console.warn("⚠️ NO COACH PROFILES FOUND!");
       }
 
-      // Create coach rates map: coach_id -> rates
-      const coachRatesMap = new Map(
-        (coachRates || []).map(cr => [cr.coach_id, cr])
+      // Create coach rates map: coach_id -> profile
+      const coachProfilesMap = new Map(
+        (profiles || []).map(p => [p.id, p])
       );
 
       // Load months
@@ -284,10 +276,13 @@ export default function BillingPage() {
           .from("activities")
           .select(`
             id,
+            activity_date,
             team_id,
             activity_type_id,
             start_time,
             end_time,
+            teams!activities_team_id_fkey(name, short_name),
+            activity_types!activities_activity_type_id_fkey(name),
             activity_coaches(
               coach_id,
               role,
@@ -296,7 +291,8 @@ export default function BillingPage() {
             )
           `)
           .gte("activity_date", startDate)
-          .lte("activity_date", endDate);
+          .lte("activity_date", endDate)
+          .order("activity_date", { ascending: true });
 
         if (teamIds.length > 0) {
           activitiesQuery = activitiesQuery.in("team_id", teamIds);
@@ -343,7 +339,7 @@ export default function BillingPage() {
 
         console.log(`Processing ${filteredActivities.length} activities for ${monthStr}`);
 
-        // Group by coach
+        // Group by coach and collect activity details
         const coachBillingMap = new Map<string, {
           training_count: number;
           training_hours: number;
@@ -353,6 +349,8 @@ export default function BillingPage() {
           hourly_amount: number;
           kilometer_amount: number;
         }>();
+
+        const activityDetailsArray: ActivityDetail[] = [];
 
         for (const activity of filteredActivities) {
           const activityCoaches = activity.activity_coaches || [];
@@ -395,38 +393,20 @@ export default function BillingPage() {
 
             console.log(`  Coach ${ac.coach_id}: role=${ac.role}, hours=${hours.toFixed(2)}`);
 
-            // Get coach rates (NOT profile hourly_rate!)
-            const coachRates = coachRatesMap.get(ac.coach_id);
+            // Get coach profile with rates
+            const coachProfile = coachProfilesMap.get(ac.coach_id);
 
-            if (!coachRates) {
-              console.warn(`⚠️ No coach_rates found for coach ${ac.coach_id} - skipping`);
+            if (!coachProfile) {
+              console.warn(`⚠️ No profile found for coach ${ac.coach_id} - skipping`);
               continue;
             }
 
-            const kmRate = coachRates.rate_per_km || 0;
+            const hourlyRate = coachProfile.hourly_rate || 0;
+            const kmRate = coachProfile.km_rate || 0;
 
-            // Select correct rate based on activity_type_id and role
-            // If coach is marked as "head" (whether main coach or substitute), they get HEAD rates
-            let hourlyRate = 0;
-            const isHead = ac.role === "head";
+            console.log(`    Using rates: hourly=${hourlyRate}, km=${kmRate}`);
             
             if (isTraining) {
-              // Type 1 or Type 2
-              if (activity.activity_type_id === 1) {
-                hourlyRate = isHead ? (coachRates.head_type1_per_hour || 0) : (coachRates.assistant_type1_per_hour || 0);
-              } else if (activity.activity_type_id === 2) {
-                // Use type2 rate, fallback to type1 if NULL
-                const type2Rate = isHead ? coachRates.head_type2_per_hour : coachRates.assistant_type2_per_hour;
-                const type1Fallback = isHead ? coachRates.head_type1_per_hour : coachRates.assistant_type1_per_hour;
-                hourlyRate = type2Rate !== null ? type2Rate : (type1Fallback || 0);
-                
-                if (type2Rate === null) {
-                  console.log(`    ⚠️ Type2 rate NULL, using type1 fallback: ${type1Fallback}`);
-                }
-              }
-              
-              console.log(`    Using rates: hourly=${hourlyRate} (type${activity.activity_type_id}), km=${kmRate}`);
-              
               entry.training_count += 1;
               entry.training_hours += hours;
               
@@ -435,17 +415,13 @@ export default function BillingPage() {
               entry.hourly_amount += amount;
               console.log(`    Training: ${hours.toFixed(2)}h × ${hourlyRate} = ${amount.toFixed(2)} €`);
             } else if (isMatch) {
-              // Type 3 - use fixed match rate (NOT hourly!)
-              const matchRate = isHead ? (coachRates.head_type3_fixed || 0) : (coachRates.assistant_type3_fixed || 0);
-              
-              console.log(`    Using rates: match=${matchRate} (fixed), km=${kmRate}`);
-              
               entry.match_count += 1;
-              entry.match_hours += 4; // Official match always counts as 4 hours for display
+              entry.match_hours += 4; // Official match always counts as 4 hours
               
-              // For matches, use FIXED rate (not hourly × 4!)
-              entry.hourly_amount += matchRate;
-              console.log(`    Match: ${matchRate.toFixed(2)} € (fixed)`);
+              // For matches, 4 hours × hourly rate
+              const matchAmount = 4 * hourlyRate;
+              entry.hourly_amount += matchAmount;
+              console.log(`    Match: 4h × ${hourlyRate} = ${matchAmount.toFixed(2)} €`);
             }
 
             // Calculate kilometer amount
@@ -456,6 +432,24 @@ export default function BillingPage() {
               entry.kilometer_amount += kmAmount;
               console.log(`    Kilometers: ${kilometers}km × ${kmRate} = ${kmAmount.toFixed(2)} €`);
             }
+
+            // Add activity detail for this coach (only once per coach per activity)
+            const existingDetail = activityDetailsArray.find(
+              d => d.date === activity.activity_date && d.team_name === (activity.teams?.short_name || activity.teams?.name || "")
+            );
+            
+            if (!existingDetail) {
+              activityDetailsArray.push({
+                date: activity.activity_date,
+                team_name: activity.teams?.short_name || activity.teams?.name || "Neznana ekipa",
+                activity_type: activity.activity_types?.name || "Neznano",
+                start_time: activity.start_time || "",
+                end_time: activity.end_time || "",
+                training_hours: isTraining ? hours : 0,
+                match_hours: isMatch ? 4 : 0,
+                kilometers: kilometers,
+              });
+            }
           }
         }
 
@@ -463,12 +457,12 @@ export default function BillingPage() {
 
         // Create billing records
         for (const [coachId, billing] of coachBillingMap) {
-          const coachRates = coachRatesMap.get(coachId);
+          const coachProfile = coachProfilesMap.get(coachId);
           const totalHours = billing.training_hours + billing.match_hours;
           const totalAmount = billing.hourly_amount + billing.kilometer_amount;
 
-          const coachName = coachRates?.profiles?.full_name 
-            ? coachRates.profiles.full_name
+          const coachName = coachProfile?.full_name 
+            ? coachProfile.full_name
             : `⚠️ Neznan trener (${coachId.substring(0, 8)}...)`;
 
           console.log(`Coach ${coachName}: training_hours=${billing.training_hours.toFixed(1)}, hourly_amount=${billing.hourly_amount.toFixed(2)}, km_amount=${billing.kilometer_amount.toFixed(2)}, total=${totalAmount.toFixed(2)}`);
@@ -487,6 +481,11 @@ export default function BillingPage() {
             kilometer_amount: Math.round(billing.kilometer_amount * 100) / 100,
             total_amount: Math.round(totalAmount * 100) / 100,
           });
+        }
+
+        // Store activity details
+        if (activityDetailsArray.length > 0) {
+          setActivityDetails(activityDetailsArray);
         }
       }
 
@@ -646,6 +645,73 @@ export default function BillingPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Activity Details Table */}
+          {!loading && activityDetails.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Podrobnosti aktivnosti</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Datum</TableHead>
+                        <TableHead>Selekcija</TableHead>
+                        <TableHead>Vrsta aktivnosti</TableHead>
+                        <TableHead>Od - Do</TableHead>
+                        <TableHead className="text-right">Ur treninga</TableHead>
+                        <TableHead className="text-right">Ur tekem</TableHead>
+                        <TableHead className="text-right">Kilometri</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activityDetails.map((detail, idx) => {
+                        const date = new Date(detail.date);
+                        const formattedDate = `${date.getDate()}.${date.getMonth() + 1}.${date.getFullYear()}`;
+                        const timeRange = detail.start_time && detail.end_time 
+                          ? `${detail.start_time.slice(0, 5)} - ${detail.end_time.slice(0, 5)}`
+                          : "";
+                        
+                        return (
+                          <TableRow key={`${detail.date}-${detail.team_name}-${idx}`}>
+                            <TableCell>{formattedDate}</TableCell>
+                            <TableCell>{detail.team_name}</TableCell>
+                            <TableCell>{detail.activity_type}</TableCell>
+                            <TableCell>{timeRange}</TableCell>
+                            <TableCell className="text-right">{detail.training_hours > 0 ? detail.training_hours.toFixed(1) : "-"}</TableCell>
+                            <TableCell className="text-right">{detail.match_hours > 0 ? detail.match_hours.toFixed(0) : "-"}</TableCell>
+                            <TableCell className="text-right">{detail.kilometers > 0 ? detail.kilometers.toFixed(1) : "-"}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                      {/* Totals Row */}
+                      <TableRow className="font-semibold bg-muted/50">
+                        <TableCell colSpan={4} className="text-right">SKUPAJ:</TableCell>
+                        <TableCell className="text-right">
+                          {activityDetails.reduce((sum, d) => sum + d.training_hours, 0).toFixed(1)} h
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {activityDetails.reduce((sum, d) => sum + d.match_hours, 0).toFixed(0)} h
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {activityDetails.reduce((sum, d) => sum + d.kilometers, 0).toFixed(1)} km
+                        </TableCell>
+                      </TableRow>
+                      {/* Combined Total Hours */}
+                      <TableRow className="font-bold">
+                        <TableCell colSpan={4} className="text-right">SKUPAJ UR:</TableCell>
+                        <TableCell colSpan={3} className="text-right">
+                          {(activityDetails.reduce((sum, d) => sum + d.training_hours + d.match_hours, 0)).toFixed(1)} h
+                        </TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </AppLayout>
     </ProtectedRoute>
