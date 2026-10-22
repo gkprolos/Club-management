@@ -281,8 +281,8 @@ export default function BillingPage() {
             activity_type_id,
             start_time,
             end_time,
-            teams!activities_team_id_fkey(name, short_name),
-            activity_types!activities_activity_type_id_fkey(name),
+            teams(name, short_name),
+            activity_types(name),
             activity_coaches(
               coach_id,
               role,
