@@ -41,6 +41,19 @@ const monthNames = [
   "Julij", "Avgust", "September", "Oktober", "November", "December"
 ];
 
+function getActivityTypeName(typeId: number): string {
+  switch (typeId) {
+    case 1:
+      return "Trening Type 1";
+    case 2:
+      return "Trening Type 2";
+    case 3:
+      return "Uradna tekma";
+    default:
+      return "Neznano";
+  }
+}
+
 export default function BillingPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -282,7 +295,6 @@ export default function BillingPage() {
             start_time,
             end_time,
             teams(name, short_name),
-            activity_types(name),
             activity_coaches(
               coach_id,
               role,
@@ -442,7 +454,7 @@ export default function BillingPage() {
               activityDetailsArray.push({
                 date: activity.activity_date,
                 team_name: activity.teams?.short_name || activity.teams?.name || "Neznana ekipa",
-                activity_type: activity.activity_types?.name || "Neznano",
+                activity_type: getActivityTypeName(activity.activity_type_id),
                 start_time: activity.start_time || "",
                 end_time: activity.end_time || "",
                 training_hours: isTraining ? hours : 0,
