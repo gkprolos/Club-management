@@ -271,15 +271,6 @@ export default function BillingPage() {
         console.log(`  Team filter: ${teamIds.length > 0 ? teamIds.join(", ") : "all teams"}`);
         console.log(`  Coach filter: ${coachIds.length > 0 ? coachIds.join(", ") : "all coaches"}`);
 
-        // Load activity types for mapping
-        const { data: activityTypes } = await supabase
-          .from("activity_types")
-          .select("id, name");
-
-        const activityTypesMap = new Map(
-          (activityTypes || []).map(at => [at.id, at.name])
-        );
-
         // Get activities for this month with full details
         let activitiesQuery = supabase
           .from("activities")
@@ -291,6 +282,7 @@ export default function BillingPage() {
             start_time,
             end_time,
             teams(name, short_name),
+            activity_types(name),
             activity_coaches(
               coach_id,
               role,
@@ -450,7 +442,7 @@ export default function BillingPage() {
               activityDetailsArray.push({
                 date: activity.activity_date,
                 team_name: activity.teams?.short_name || activity.teams?.name || "Neznana ekipa",
-                activity_type: activityTypesMap.get(activity.activity_type_id) || "Neznano",
+                activity_type: activity.activity_types?.name || "Neznano",
                 start_time: activity.start_time || "",
                 end_time: activity.end_time || "",
                 training_hours: isTraining ? hours : 0,
