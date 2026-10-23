@@ -252,6 +252,15 @@ export default function BillingPage() {
         (profiles || []).map(p => [p.id, p])
       );
 
+      // Load activity types once (not in month loop)
+      const { data: activityTypes } = await supabase
+        .from("activity_types")
+        .select("id, name");
+
+      const activityTypesMap = new Map(
+        (activityTypes || []).map(at => [at.id, at.name])
+      );
+
       // Load months
       for (let i = startMonthOffset; i < startMonthOffset + monthsToLoad; i++) {
         const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
