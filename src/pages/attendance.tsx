@@ -674,7 +674,7 @@ export default function AttendancePage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="1">1 - Trening v dvorani</SelectItem>
-                          <SelectItem value="2">2 - Trening ali pripravljalna tekma zunaj dvorane</SelectItem>
+                          <SelectItem value="2">2 - Trening (tekma) v gosteh)</SelectItem>
                           <SelectItem value="3">3 - Uradna tekma</SelectItem>
                         </SelectContent>
                       </Select>
