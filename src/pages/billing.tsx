@@ -252,15 +252,6 @@ export default function BillingPage() {
         (profiles || []).map(p => [p.id, p])
       );
 
-      // Load activity types once (not in month loop)
-      const { data: activityTypes } = await supabase
-        .from("activity_types")
-        .select("id, name");
-
-      const activityTypesMap = new Map(
-        (activityTypes || []).map(at => [at.id, at.name])
-      );
-
       // Load months
       for (let i = startMonthOffset; i < startMonthOffset + monthsToLoad; i++) {
         const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -451,7 +442,7 @@ export default function BillingPage() {
               activityDetailsArray.push({
                 date: activity.activity_date,
                 team_name: activity.teams?.short_name || activity.teams?.name || "Neznana ekipa",
-                activity_type: activity.activity_types?.name || "Neznano",
+                activity_type: getActivityTypeName(activity.activity_type_id),
                 start_time: activity.start_time || "",
                 end_time: activity.end_time || "",
                 training_hours: isTraining ? hours : 0,
